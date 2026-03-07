@@ -1,0 +1,40 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36221.1 d17.14
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp1", "ConsoleApp1.csproj", "{64D72833-AF76-460E-9CCE-BBA9D2A29DDE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DevicePluginSystem", "..\DevicePluginSystem\DevicePluginSystem.csproj", "{7CBAE927-8820-45AF-B969-BCCB7C726883}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MyLampPlugin", "..\MyLampPlugin\MyLampPlugin.csproj", "{3836719B-AA72-4AF7-8FEC-DFCDAF73F4CA}"
+	ProjectSection(ProjectDependencies) = postProject
+		{7CBAE927-8820-45AF-B969-BCCB7C726883} = {7CBAE927-8820-45AF-B969-BCCB7C726883}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{64D72833-AF76-460E-9CCE-BBA9D2A29DDE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{64D72833-AF76-460E-9CCE-BBA9D2A29DDE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{64D72833-AF76-460E-9CCE-BBA9D2A29DDE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{64D72833-AF76-460E-9CCE-BBA9D2A29DDE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7CBAE927-8820-45AF-B969-BCCB7C726883}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7CBAE927-8820-45AF-B969-BCCB7C726883}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7CBAE927-8820-45AF-B969-BCCB7C726883}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7CBAE927-8820-45AF-B969-BCCB7C726883}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3836719B-AA72-4AF7-8FEC-DFCDAF73F4CA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3836719B-AA72-4AF7-8FEC-DFCDAF73F4CA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3836719B-AA72-4AF7-8FEC-DFCDAF73F4CA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3836719B-AA72-4AF7-8FEC-DFCDAF73F4CA}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {86242A4E-A5B4-4AFB-B0AC-FE2EC97036DA}
+	EndGlobalSection
+EndGlobal

@@ -1,182 +1,101 @@
-﻿using DevicePluginSystem; // Ссылка на интерфейс
-using System;
+﻿using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
-namespace ConsoleApp1
+using Microsoft.Extensions.DependencyInjection;
+using DevicePluginSystem;
+
+// Контекст для выгрузки DLL
+public class DeviceLoadContext : AssemblyLoadContext
 {
+    public DeviceLoadContext() : base(isCollectible: true) { }
+    protected override Assembly Load(AssemblyName n) => null;
+}
 
+// Реализация сервисов
+public class ConsoleLogger : ILogger { public void Log(string m) => Console.WriteLine($"[LOG]: {m}"); }
 
-    class Program
+public class DeviceEventManager : IDeviceEvents
+{
+    public event Action<string, DeviceData> OnDataReceived;
+    public void Publish<T>(string name, T data) where T : DeviceData => OnDataReceived?.Invoke(name, data);
+}
+
+class Program
+{
+    private static IServiceProvider _sp;
+    private static string _path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins");
+    private static Dictionary<string, (DeviceLoadContext ctx, IDevice dev)> _plugins = new();
+
+    static void Main()
     {
-        /*
-        static void Main()
-        {
-            /*   string pluginPath = AppContext.BaseDirectory+ @"MyLampPlugin.dll";
+        // Настройка DI
+        var events = new DeviceEventManager();
+        events.OnDataReceived += (name, data) => {
+            string val = data is TemperatureData t ? $"{t.Value}°C" : "Unknown";
+            Console.WriteLine($"[СОБЫТИЕ] {name} прислал данные: {val}");
+        };
 
-               // 1. Загружаем сборку
-               Assembly assembly = Assembly.LoadFrom(pluginPath);
+        _sp = new ServiceCollection()
+            .AddSingleton<ILogger, ConsoleLogger>()
+            .AddSingleton<IDeviceEvents>(events)
+            .BuildServiceProvider();
 
-               // 2. Ищем типы, которые реализуют IDevice и не являются интерфейсами/абстрактными
-               var deviceTypes = assembly.GetTypes()
-                   .Where(t => typeof(IDevice).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+        if (!Directory.Exists(_path)) Directory.CreateDirectory(_path);
 
-               foreach (var type in deviceTypes)
-               {
-                   // 3. Создаем экземпляр
-                   IDevice device = (IDevice)Activator.CreateInstance(type);
+        // 1. СКАНИРУЕМ ПАПКУ ПРИ СТАРТЕ
+        ScanExistingPlugins();
 
-                   Console.WriteLine($"Найдено устройство: {device.Name}");
-                   device.Connect();
-               }*/
+        // Слежка за папкой
+        using var watcher = new FileSystemWatcher(_path, "*.dll") { EnableRaisingEvents = true };
+        watcher.Created += (s, e) => LoadPlugin(e.FullPath);
+        watcher.Changed += (s, e) => LoadPlugin(e.FullPath);
 
-        /*
-        // 1. Указываем путь к папке с плагинами (например, папка "Plugins")
-        string pluginsDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins");
-
-        // Создаем папку, если её нет
-        if (!Directory.Exists(pluginsDirectory))
-        {
-            Directory.CreateDirectory(pluginsDirectory);
-            Console.WriteLine($"Папка создана: {pluginsDirectory}. Положите туда DLL.");
-            return;
-        }
-
-        // 2. Ищем все DLL файлы
-        var dllFiles = Directory.GetFiles(pluginsDirectory, "*.dll");
-        var devices = new List<IDevice>();
-
-        foreach (var file in dllFiles)
-        {
-            try
-            {
-                // Загружаем сборку
-                Assembly assembly = Assembly.LoadFrom(file);
-
-                // Ищем типы
-                var types = assembly.GetTypes().Where(t =>
-                    typeof(IDevice).IsAssignableFrom(t) &&
-                    !t.IsInterface &&
-                    !t.IsAbstract);
-
-                foreach (var type in types)
-                {
-                    if (Activator.CreateInstance(type) is IDevice device)
-                    {
-                        devices.Add(device);
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Ошибка при загрузке {Path.GetFileName(file)}: {ex.Message}");
-            }
-        }
-
-        // 3. Работаем со всеми найденными устройствами
-        Console.WriteLine($"Найдено устройств: {devices.Count}");
-        foreach (var device in devices)
-        {
-            Console.WriteLine($"--- {device.Name} ---");
-            device.Connect();
-        }
-        */
-
-        // Храним контекст и список устройств из этого контекста
-        private static Dictionary<string, (DeviceLoadContext Context, List<IDevice> Devices)> _plugins = new();
-        private static string _pluginsPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Plugins");
-
-        static void Main()
-        {
-            if (!Directory.Exists(_pluginsPath)) Directory.CreateDirectory(_pluginsPath);
-
-            RefreshPlugins();
-
-            using var watcher = new FileSystemWatcher(_pluginsPath, "*.dll");
-            watcher.Changed += (s, e) => RefreshPlugins();
-            watcher.Created += (s, e) => RefreshPlugins();
-            watcher.EnableRaisingEvents = true;
-
-            Console.WriteLine("Слежу за папкой Plugins. Нажмите Enter для выхода.");
-            Console.ReadLine();
-        }
-
-        private static void RefreshPlugins()
-        {
-            // Небольшая пауза, чтобы файл успел скопироваться
-            System.Threading.Thread.Sleep(500);
-
-            var files = Directory.GetFiles(_pluginsPath, "*.dll");
-            foreach (var file in files)
-            {
-                ReloadPlugin(file);
-            }
-        }
-
-        // Метод помечен NoInlining, чтобы переменные внутри не удерживали сборку в памяти
-        [MethodImpl(MethodImplOptions.NoInlining)]
-        private static void ReloadPlugin(string path)
-        {
-            string fileName = Path.GetFileName(path);
-
-            // 1. Если плагин уже загружен — выгружаем старую версию
-            if (_plugins.ContainsKey(path))
-            {
-                Console.WriteLine($"[Выгрузка] {fileName}");
-                var oldData = _plugins[path];
-                oldData.Devices.Clear();
-                oldData.Context.Unload(); // Помечаем на удаление из памяти
-                _plugins.Remove(path);
-
-                // Форсируем сборку мусора, чтобы файл реально освободился
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-            }
-
-            // 2. Загружаем новую версию
-            try
-            {
-                var alc = new DeviceLoadContext();
-                var devices = new List<IDevice>();
-
-                // Загружаем через поток, чтобы не блокировать файл
-                using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
-                Assembly assembly = alc.LoadFromStream(fs);
-
-                var types = assembly.GetTypes().Where(t =>
-                    typeof(IDevice).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
-
-                foreach (var type in types)
-                {
-                    if (Activator.CreateInstance(type) is IDevice device)
-                    {
-                        devices.Add(device);
-                        Console.WriteLine($"[Загрузка] Найдено: {device.Name}");
-                        device.Connect();
-                    }
-                }
-
-                _plugins[path] = (alc, devices);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[Ошибка] {fileName}: {ex.Message}");
-            }
-
-
-            Console.ReadLine();
-        }
+        Console.WriteLine("Система готова. Нажмите Enter для выхода.");
+        Console.ReadLine();
     }
-    // Специальный контекст, который можно выгрузить
-    public class DeviceLoadContext : AssemblyLoadContext
-    {
-        public DeviceLoadContext() : base(isCollectible: true) { }
 
-        protected override Assembly Load(AssemblyName assemblyName)
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static void LoadPlugin(string path)
+    {
+        System.Threading.Thread.Sleep(500); // Пауза для освобождения файла процессом копирования
+
+        if (_plugins.ContainsKey(path))
         {
-            // Позволяем загрузчику искать зависимости в папке приложения
-            return null;
+            _plugins[path].ctx.Unload();
+            _plugins.Remove(path);
+            GC.Collect(); GC.WaitForPendingFinalizers();
+            Console.WriteLine("Старая версия выгружена.");
+        }
+
+        try
+        {
+            var alc = new DeviceLoadContext();
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
+            var assembly = alc.LoadFromStream(fs);
+            var type = assembly.GetTypes().FirstOrDefault(t => typeof(IDevice).IsAssignableFrom(t) && !t.IsInterface && !t.IsAbstract);
+
+            if (type != null)
+            {
+                var device = (IDevice)ActivatorUtilities.CreateInstance(_sp, type);
+                _plugins[path] = (alc, device);
+                device.Connect();
+                Console.WriteLine($"Загружен: {device.Name}");
+            }
+        }
+        catch (Exception ex) { Console.WriteLine($"Ошибка: {ex.Message}"); }
+    }
+    // Новый вспомогательный метод
+    static void ScanExistingPlugins()
+    {
+        var files = Directory.GetFiles(_path, "*.dll");
+        foreach (var file in files)
+        {
+            Console.WriteLine($"[Старт] Обнаружен файл: {Path.GetFileName(file)}");
+            LoadPlugin(file);
         }
     }
 }

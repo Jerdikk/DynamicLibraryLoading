@@ -18,13 +18,19 @@ namespace MyLampPlugin
         public void Connect()
         {
             _logger.Log($"{Name} инициализирован.");
-
-            // Имитируем отправку данных
-            Task.Run(async () => {
-                await Task.Delay(2000);
-                var data = new TemperatureData { Value = 24.5 };
-                _eventBus.Publish(Name, data);
-            });
+            
+                // Имитируем отправку данных
+                Task.Run(async () =>
+                {
+                    for (int i = 0; i < 10; i++)
+                    {
+                        await Task.Delay(2000);
+                        Random random = new Random();
+                        var data = new TemperatureData { Value = 24.5 * random.NextDouble() };
+                        _eventBus.Publish(Name, data);
+                    }
+                });                
+            
         }
     }
 }

@@ -4,19 +4,8 @@ using System.Linq;
 using System.Reflection;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Runtime.Loader;
 using Microsoft.Extensions.DependencyInjection;
 using DevicePluginSystem;
-
-// Контекст для выгрузки DLL
-public class DeviceLoadContext : AssemblyLoadContext
-{
-    public DeviceLoadContext() : base(isCollectible: true) { }
-    protected override Assembly Load(AssemblyName n) => null;
-}
-
-// Реализация сервисов
-public class ConsoleLogger : ILogger { public void Log(string m) => Console.WriteLine($"[LOG]: {m}"); }
 
 public class DeviceEventManager : IDeviceEvents
 {
@@ -36,7 +25,8 @@ class Program
         var events = new DeviceEventManager();
         events.OnDataReceived += (name, data) => {
             string val = data is TemperatureData t ? $"{t.Value}°C" : "Unknown";
-            Console.WriteLine($"[СОБЫТИЕ] {name} прислал данные: {val}");
+            DateTime dateTime = DateTime.Now;
+            Console.WriteLine($"{dateTime} [СОБЫТИЕ] {name} прислал данные: {val}");
         };
 
         _sp = new ServiceCollection()
@@ -86,12 +76,12 @@ class Program
             // 2. Проверка: является ли файл валидной .NET сборкой?
             AssemblyName testName = AssemblyName.GetAssemblyName(path);
 
-            var alc = new DeviceLoadContext();
+            var deviceLib = new DeviceLoadContext();
             using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
-            var assembly = alc.LoadFromStream(fs);
+            var devLibAssembly = deviceLib.LoadFromStream(fs);
 
             // 3. Ищем подходящие типы
-            var validTypes = assembly.GetTypes().Where(t =>
+            var validTypes = devLibAssembly.GetTypes().Where(t =>
                 typeof(IDevice).IsAssignableFrom(t) &&
                 !t.IsInterface &&
                 !t.IsAbstract).ToList();
@@ -99,7 +89,7 @@ class Program
             if (!validTypes.Any())
             {
                 Console.WriteLine($"[Пропуск] {fileName}: Не содержит реализаций IDevice.");
-                alc.Unload();
+                deviceLib.Unload();
                 return;
             }
 
@@ -116,7 +106,7 @@ class Program
                         Console.WriteLine($"[Warn] {device.Name} имеет версию {device.Version}. Возможны ошибки.");
                     }
 
-                    _plugins[path] = (alc, device);
+                    _plugins[path] = (deviceLib, device);
                     device.Connect();
                     Console.WriteLine($"[OK] Устройство загружено: {device.Name} ({device.Version})");
                 }
